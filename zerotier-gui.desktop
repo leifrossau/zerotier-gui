@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=ZeroTier GUI
+GenericName=VPN Manager
+Comment=Manage ZeroTier One networks
+Exec=zerotier-gui
+Icon=network-vpn
+Categories=Network;GTK;
+Terminal=false
+StartupNotify=true
+StartupWMClass=io.github.leifrossau.ZeroTierGUI
