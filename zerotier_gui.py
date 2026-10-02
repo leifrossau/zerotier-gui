@@ -423,7 +423,11 @@ class DevicesPage(Adw.PreferencesPage):
         self.add(self.header)
 
     def on_data(self, networks, peers):
+        first = not self.networks and networks
         self.networks, self.peers = networks, peers
+        # Opened before the first refresh arrived: scan now that the networks are known.
+        if first and self.scanned_at == 0 and self.window.stack.get_visible_child_name() == "devices":
+            self.scan()
 
     def scan_if_stale(self):
         if time.monotonic() - self.scanned_at > self.STALE_SECONDS:

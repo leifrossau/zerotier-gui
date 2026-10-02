@@ -4,6 +4,16 @@ An unofficial desktop app for managing ZeroTier One on Linux.
 
 **Disclaimer:** This project is not affiliated with or endorsed by ZeroTier, Inc. "ZeroTier" is a trademark of ZeroTier, Inc.
 
+## Screenshots
+
+| Networks | Devices | Peers |
+|:---:|:---:|:---:|
+| ![Networks tab with an expanded network, its addresses and routing options](docs/screenshots/networks.png) | ![Devices tab listing discovered devices with per-device tools](docs/screenshots/devices.png) | ![Peers tab listing ZeroTier peers with path and latency](docs/screenshots/peers.png) |
+
+<p align="center"><img src="docs/screenshots/devices-dark.png" alt="Devices tab in dark mode" width="420"></p>
+
+The screenshots show demo data (see [Development](#development)); they follow your system's light or dark style.
+
 ## Overview
 
 ZeroTier GUI provides a native Linux desktop interface for the ZeroTier One service, built with Python 3.11+, GTK 4 and libadwaita (≥ 1.6). It has been developed and tested on KDE Plasma 6 (Wayland) on Arch-based Linux. It should work on other desktops; the tray icon requires a desktop that supports StatusNotifierItem (KDE Plasma; GNOME requires the AppIndicator extension).
@@ -58,6 +68,12 @@ python3 mock_zt.py --port 19993 --token test &
 ZT_PORT=19993 ZT_TOKEN=test python3 zerotier_gui.py
 ```
 
+To see the app with made-up devices (this is how the screenshots are made), run the demo. It starts the mock service on a free port, uses a throwaway config directory and fakes the device scan, so it never touches a real service or device:
+
+```bash
+python3 tools/demo.py --page devices --expand        # also: --page networks|peers, --dark
+```
+
 For Central API mocking:
 ```bash
 python3 mock_central.py --port 19995 --token centraltest &
@@ -77,6 +93,7 @@ ZT_PORT=19993 ZT_TOKEN=test ZT_CENTRAL_URL=http://127.0.0.1:19995/api/v1 ZT_CENT
 | `io.github.leifrossau.zerotiergui.policy` | polkit policy for the helper |
 | `install.sh`, `install-system.sh` | User install and one-time system install |
 | `mock_zt.py`, `mock_central.py` | Mock servers for development |
+| `tools/demo.py` | Runs the app on demo data (used for the screenshots) |
 
 See [SECURITY.md](SECURITY.md) for the security model and how to report vulnerabilities.
 

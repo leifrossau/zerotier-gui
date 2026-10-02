@@ -30,7 +30,7 @@ class MockZTHandler(BaseHTTPRequestHandler):
                 "name": "home-lab",
                 "status": "OK",
                 "type": "PRIVATE",
-                "mac": "00:11:22:33:44:55",
+                "mac": "12:b0:a3:df:36:27",
                 "mtu": 10000,
                 "portDeviceName": "zt8056c2e2",
                 "assignedAddresses": ["10.147.17.5/24", "fd80::17:5/88"],
@@ -49,7 +49,7 @@ class MockZTHandler(BaseHTTPRequestHandler):
                 "name": "",
                 "status": "ACCESS_DENIED",
                 "type": "PRIVATE",
-                "mac": "00:66:77:88:99:aa",
+                "mac": "22:83:90:df:36:27",
                 "mtu": 10000,
                 "portDeviceName": "zt8056c2e3",
                 "assignedAddresses": [],
@@ -64,47 +64,19 @@ class MockZTHandler(BaseHTTPRequestHandler):
             },
         }
 
-        # Initialize peers
+        # Initialize peers (documentation-only IP ranges; leaf IDs match tools/demo.py)
+        def peer(address, role, latency, version, path=None):
+            paths = [{"address": path, "active": True, "preferred": True}] if path else []
+            return {"address": address, "role": role, "latency": latency, "version": version, "paths": paths}
+
         cls._peers = [
-            {
-                "address": "a1b2c3d4e5000001",
-                "latency": 45,
-                "role": "PLANET",
-                "version": "1.14.2",
-                "paths": [
-                    {
-                        "address": "1.2.3.4/9993",
-                        "active": True,
-                        "preferred": True,
-                    }
-                ],
-            },
-            {
-                "address": "f1f2f3f4f5000002",
-                "latency": 120,
-                "role": "LEAF",
-                "version": "1.14.1",
-                "paths": [
-                    {
-                        "address": "5.6.7.8/9993",
-                        "active": True,
-                        "preferred": False,
-                    }
-                ],
-            },
-            {
-                "address": "b1b2b3b4b5000003",
-                "latency": 15,
-                "role": "PLANET",
-                "version": "1.14.2",
-                "paths": [
-                    {
-                        "address": "9.10.11.12/9993",
-                        "active": True,
-                        "preferred": True,
-                    }
-                ],
-            },
+            peer("62f865ae71", "PLANET", 38, "1.14.2", "192.0.2.10/9993"),
+            peer("778cde7190", "PLANET", 112, "1.14.2", "192.0.2.20/9993"),
+            peer("8056c2e21c", "LEAF", 27, "1.14.2", "198.51.100.7/9993"),
+            peer("3f9c1a7b22", "LEAF", 4, "1.14.2", "203.0.113.21/41641"),
+            peer("7d20e5c913", "LEAF", 11, "1.14.2", "203.0.113.34/9993"),
+            peer("b84f0d6a55", "LEAF", -1, "1.12.2"),
+            peer("e1a7c3940f", "LEAF", 23, "1.14.1", "203.0.113.60/21004"),
         ]
 
     def log_message(self, format, *args):
