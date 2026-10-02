@@ -22,7 +22,7 @@ ZeroTier GUI provides a native Linux desktop interface for the ZeroTier One serv
 
 - **Networks tab:** View your node ID and online status. Manage joined networks, see assigned IPs and interfaces. Toggle Allow managed, global routes, default route and DNS settings. Join networks by 16-digit ID (auto-populated from clipboard) or leave with confirmation.
 
-- **Devices tab:** Discover other devices on your networks by scanning private address ranges (max ~1024 hosts per network). Maps IPs to ZeroTier node IDs, resolves hostnames via reverse DNS, NetBIOS, mDNS and LLMNR, and identifies devices from SSH/HTTP banners. Per-device tools: Ping, SSH (opens a terminal), SFTP file browser, SMB shares, web UI links, Remote Desktop (if KRDC is installed), and local nicknames.
+- **Devices tab:** Discover other devices on your networks by scanning private address ranges (max ~1024 hosts per network). Maps IPs to ZeroTier node IDs, resolves hostnames via reverse DNS, NetBIOS, mDNS and LLMNR, and identifies devices from SSH/HTTP banners. Per-device tools: Ping, SSH (opens a terminal), SFTP file browser, SMB shares, web UI links, Remote Desktop for RDP/VNC (uses KRDC, Remmina, GNOME Connections, FreeRDP or TigerVNC, whichever is installed, including Flatpaks; if none is, it shows the command to install one), and local nicknames.
 
   Note: a scan pings every address in the network's subnet and probes a few common ports on devices that answer. Only scan networks where that is acceptable to the other members.
 
@@ -34,7 +34,7 @@ ZeroTier GUI provides a native Linux desktop interface for the ZeroTier One serv
 
 ## Installation
 
-**Requirements (Arch package names):** `python-gobject gtk4 libadwaita zerotier-one polkit`. Optional: `avahi` (mDNS), `konsole` or another terminal, `dolphin` (file browser), `krdc` (remote desktop).
+**Requirements (Arch package names):** `python-gobject gtk4 libadwaita zerotier-one polkit`. Optional: `avahi` (mDNS), `konsole` or another terminal, `dolphin` (file browser), `krdc` or another RDP/VNC client (remote desktop).
 
 ```bash
 git clone https://github.com/leifrossau/zerotier-gui.git

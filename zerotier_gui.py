@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -269,11 +270,78 @@ def open_in_terminal(window, argv):
 
 
 def pretty_hostname(name):
-    """'OFFICE NAS' (NetBIOS) -> 'Office Nas'; 'nas.local' -> 'nas'."""
+    """'OFFICE NAS' (NetBIOS) -> 'Office NAS'; 'nas.local' -> 'nas'."""
     if not name:
         return None
     name = name.removesuffix(".local")
-    return name.title() if name.isupper() else name
+    if not name.isupper():
+        return name
+    # NetBIOS names are all caps: "GAMING-PC" -> "Gaming-PC", "OFFICE NAS" -> "Office NAS"
+    return re.sub(r"[A-Z0-9]+", lambda m: m[0] if len(m[0]) <= 3 or any(c.isdigit() for c in m[0]) else m[0].capitalize(), name)
+
+
+# Remote desktop clients, in order of preference. Each builds argv for a validated IP host
+# ("[v6]" already bracketed where the client wants a URI).
+REMOTE_CLIENTS = {
+    "rdp": [
+        ("KRDC", "krdc", "org.kde.krdc", lambda h: [f"rdp://{h}"]),
+        ("Remmina", "remmina", "org.remmina.Remmina", lambda h: ["-c", f"rdp://{h}"]),
+        ("Connections", "gnome-connections", "org.gnome.Connections", lambda h: [f"rdp://{h}"]),
+        ("FreeRDP", "sdl-freerdp3", None, lambda h: [f"/v:{h}"]),
+        ("FreeRDP", "xfreerdp3", None, lambda h: [f"/v:{h}"]),
+        ("FreeRDP", "wlfreerdp", None, lambda h: [f"/v:{h}"]),
+        ("FreeRDP", "xfreerdp", None, lambda h: [f"/v:{h}"]),
+    ],
+    "vnc": [
+        ("KRDC", "krdc", "org.kde.krdc", lambda h: [f"vnc://{h}"]),
+        ("Remmina", "remmina", "org.remmina.Remmina", lambda h: ["-c", f"vnc://{h}"]),
+        ("Connections", "gnome-connections", "org.gnome.Connections", lambda h: [f"vnc://{h}"]),
+        ("TigerVNC", "vncviewer", None, lambda h: [h]),
+    ],
+}
+REMOTE_PORTS = {"rdp": 3389, "vnc": 5900}
+
+
+def installed_flatpaks():
+    if not shutil.which("flatpak"):
+        return set()
+    try:
+        out = subprocess.run(["flatpak", "list", "--app", "--columns=application"],
+                             capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        return set()
+    return set(out.split())
+
+
+def find_remote_client(proto):
+    """(name, argv-builder) for the first installed client for proto, or None. Checked on every
+    use so a client installed while the app runs is picked up."""
+    flatpaks = None
+    for name, binary, flatpak_id, args in REMOTE_CLIENTS[proto]:
+        if shutil.which(binary):
+            return name, lambda h, b=binary, a=args: [b, *a(h)]
+        if flatpak_id:
+            if flatpaks is None:
+                flatpaks = installed_flatpaks()
+            if flatpak_id in flatpaks:
+                return name, lambda h, f=flatpak_id, a=args: ["flatpak", "run", f, *a(h)]
+    return None
+
+
+def suggested_remote_client():
+    """(client name, install command) suited to this desktop and distribution."""
+    desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").upper()
+    if "KDE" in desktop:
+        name, pkg, flatpak_id = "KRDC", "krdc", "org.kde.krdc"
+    elif "GNOME" in desktop:
+        name, pkg, flatpak_id = "Connections", "gnome-connections", "org.gnome.Connections"
+    else:
+        name, pkg, flatpak_id = "Remmina", "remmina", "org.remmina.Remmina"
+    for manager, cmd in (("pacman", f"sudo pacman -S {pkg}"), ("apt", f"sudo apt install {pkg}"),
+                         ("dnf", f"sudo dnf install {pkg}"), ("zypper", f"sudo zypper install {pkg}")):
+        if shutil.which(manager):
+            return name, cmd
+    return name, f"flatpak install flathub {flatpak_id}"
 
 
 class DeviceRow(Adw.ExpanderRow):
@@ -357,10 +425,11 @@ class DeviceRow(Adw.ExpanderRow):
                 url = f"{scheme}://{host}" + ("" if default else f":{port}") + "/"
                 labels = {80: "Website", 443: "Website (HTTPS)", 8080: "Web :8080", 8096: "Jellyfin", 32400: "Plex"}
                 tool(labels[port], "applications-internet-symbolic", lambda u=url: open_uri(self.window, u), url)
-        if (3389 in dev.ports or 5900 in dev.ports) and shutil.which("krdc"):
-            proto = "rdp" if 3389 in dev.ports else "vnc"
-            tool("Remote Desktop", "computer-symbolic",
-                 lambda: Gio.Subprocess.new(["krdc", f"{proto}://{host}"], Gio.SubprocessFlags.NONE))
+        remote = [p for p, port in REMOTE_PORTS.items() if port in dev.ports]
+        for proto in remote:
+            label = "Remote Desktop" if len(remote) == 1 else f"Remote Desktop ({proto.upper()})"
+            tool(label, "computer-symbolic", lambda p=proto: self.page.open_remote_desktop(self.dev, p, self.display_name),
+                 f"Connect with {proto.upper()}")
         tool("Rename", "document-edit-symbolic", self.rename, "Give this device a local nickname")
 
         tools_row = Adw.PreferencesRow(activatable=False, child=tools)
@@ -488,6 +557,39 @@ class DevicesPage(Adw.PreferencesPage):
 
         self.window.toast(f"Pinging {ip}…")
         run_async(work, done, lambda e: self.window.toast(f"Ping failed: {e}"))
+
+    def open_remote_desktop(self, dev, proto, title):
+        """Connect with an installed RDP/VNC client, or explain how to install one."""
+        client = find_remote_client(proto)
+        if client:
+            name, argv = client
+            try:
+                Gio.Subprocess.new(argv(uri_host(dev.ip)), Gio.SubprocessFlags.NONE)
+                self.window.toast(f"Opening {title} in {name}…")
+            except GLib.Error as e:
+                self.window.toast(f"Couldn't start {name}: {e.message}")
+            return
+
+        suggested, command = suggested_remote_client()
+        self.window.get_application().show_window()
+        dialog = Adw.AlertDialog(
+            heading="Remote Desktop Client Needed",
+            body=(
+                f"{title} accepts remote desktop connections ({proto.upper()}), but no client app is installed. "
+                f"Install {suggested} by running this in a terminal, then try again:"
+            ),
+        )
+        label = Gtk.Label(label=command, selectable=True, wrap=True)
+        label.add_css_class("monospace")
+        dialog.set_extra_child(label)
+        dialog.add_response("close", "Close")
+        dialog.add_response("copy", "Copy Command")
+        dialog.set_response_appearance("copy", Adw.ResponseAppearance.SUGGESTED)
+        dialog.set_default_response("copy")
+        dialog.set_close_response("close")
+        dialog.connect("response", lambda _d, r: r == "copy"
+                       and (copy_to_clipboard(command), self.window.toast("Command copied")))
+        dialog.present(self.window)
 
     def connect_shell(self, dev, kind, title):
         """Ask for the remote username, then open SSH or SFTP."""
@@ -1364,6 +1466,11 @@ class App(Adw.Application):
                         sub.append(M("Files (SFTP)…",
                                      self._with_window(lambda d=d, t=label: page.connect_shell(d, "sftp", t)),
                                      icon_name="folder-remote"))
+                    for proto, port in REMOTE_PORTS.items():
+                        if port in d.ports:
+                            sub.append(M(f"Remote Desktop ({proto.upper()})…",
+                                         lambda d=d, p=proto, t=label: page.open_remote_desktop(d, p, t),
+                                         icon_name="computer"))
                     if 445 in d.ports:
                         sub.append(M("Shares (SMB)", lambda h=host: open_uri(w, f"smb://{h}/"), icon_name="folder-remote"))
                     for port in d.ports:
